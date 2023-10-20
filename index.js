@@ -7,18 +7,20 @@ const mandatoryPlayer = [
     'Pedro Porro',
     'Haaland',
     'Maddison',
-    // 'Burn',
+    'Burn',
     'Salah',
     'Son',
-    // 'Neto',
+    'Neto',
     'Watkins',
-    // 'Lamptey',
-    // 'J.Alvarez'
+    'Lamptey',
+    'J.Alvarez'
 ]
 /**
  * fpl money
  */
 const money = 101.5
+
+const checkGw = null;
 
 
 const fplData = require('./fpl-data')
@@ -27,6 +29,11 @@ const playerData = fplData.playerData;
 const fixturesData = fplData.fixturesData;
 
 Promise.all([playerData, fixturesData]).then(([{elements, events, teams}, fixtures]) => {
+    const gameWeek = events.find(o => o.is_current).id;
+    console.log('\n')
+    console.log(`====== FPL gameweek ${checkGw || (gameWeek + 1)} Optimization =====`)
+    console.log('\n')
+    
     /**
      * create variable models
      * @param {string} suffix 
@@ -34,14 +41,14 @@ Promise.all([playerData, fixturesData]).then(([{elements, events, teams}, fixtur
      * @param {Array} addEntries 
      * @returns 
      */
-    const createVariables = (suffix, filterCat, addEntries) => Object.fromEntries(elements.map(e => {
+    const createVariables = (suffix, filterCat, addEntries, inputGw=null) => Object.fromEntries(elements.map(e => {
         const picksData = { picks: [
             {
                 element: parseInt(e.id),
                 multiplier: 1
             }
         ]}
-        const gameWeek = events.find(o => o.is_current).id;
+        
         
         let entries = Object.fromEntries([
             [`${e.web_name}${suffix}`, 1],
@@ -50,7 +57,7 @@ Promise.all([playerData, fixturesData]).then(([{elements, events, teams}, fixtur
             ['mid', e.element_type == 3 ? 1 : 0],
             ['def', e.element_type == 2 ? 1 : 0],
             ['gkp', e.element_type == 1 ? 1 : 0],
-            ['xp', fplData.getTotalXPMultiplies({elements, teams}, gameWeek, 1, picksData, fixtures).totalXPoints],
+            ['xp', fplData.getTotalXPMultiplies({elements, teams}, gameWeek, inputGw && inputGw > gameWeek ? (inputGw - gameWeek) : 1, picksData, fixtures).totalXPoints],
             [`team_${e.team_code}`, 1],
         ]);
 
@@ -71,7 +78,7 @@ Promise.all([playerData, fixturesData]).then(([{elements, events, teams}, fixtur
      */
 
     // variables
-    const fplVariables = createVariables('', (v) => { return v }, []);
+    const fplVariables = createVariables('', (v) => { return v }, [], checkGw);
 
     // constraints
     const maxPick = Object.fromEntries(elements.map(e => [e.web_name, {"max": 1, "min": 0}]));
@@ -109,7 +116,7 @@ Promise.all([playerData, fixturesData]).then(([{elements, events, teams}, fixtur
     console.log('--- tranf opt ---')
     const solution = solver.Solve(model);
     console.table(solution);
-    
+    const optimizedSquad = Object.keys(solution).filter(a => a != 'feasible' && a != 'result' && a!= 'bounded' && a != 'isIntegral')
 
     /**
      * 
@@ -120,8 +127,8 @@ Promise.all([playerData, fixturesData]).then(([{elements, events, teams}, fixtur
      */
 
     // variables
-    const fplVariables2 = createVariables('', (v) => Object.keys(solution).filter(a => a != 'feasible' && a != 'result' && a!= 'bounded' && a != 'isIntegral').includes(v.web_name), [])
-    const fplCaptaincyVariables2 = createVariables('*', (v) => Object.keys(solution).filter(a => a != 'feasible' && a != 'result' && a!= 'bounded' && a != 'isIntegral').includes(v.web_name), [[`capt_check`, 1],])
+    const fplVariables2 = createVariables('', (v) => optimizedSquad.includes(v.web_name), [], checkGw)
+    const fplCaptaincyVariables2 = createVariables('*', (v) => optimizedSquad.includes(v.web_name), [[`capt_check`, 1],], checkGw)
     
     // constraints
     const maxPick2 = Object.fromEntries(elements.map(e => [e.web_name, {"max": 1, "min": 0}]));
@@ -170,12 +177,17 @@ Promise.all([playerData, fixturesData]).then(([{elements, events, teams}, fixtur
      */
 
     let cost = 0;
-    const players = Object.keys(solution).filter(a => a != 'feasible' && a != 'result' && a!= 'bounded' && a != 'isIntegral');
-    for (let p of players) {
+    for (let p of optimizedSquad) {
         let eee = elements.find(e => e.web_name == p);
         cost += eee.now_cost;
     }
     console.log('cost:', cost/10);
 
+    const buys = optimizedSquad.filter(o => !mandatoryPlayer.includes(o))
+    console.log('>> recommend to buy:', buys.join(', '))
+
+    console.log('\n')
+    console.log(`================`)
+    console.log('\n')
 })
 
