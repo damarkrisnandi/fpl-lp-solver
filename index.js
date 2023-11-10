@@ -56,6 +56,7 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
     console.log(`====== FPL gameweek ${checkGw || (gameWeek + 1)} Optimization =====`)
     
     fplData.picksData(playerId, gameWeek).then((picksData) => {
+        elements.sort((a, b) => a.element_type - b.element_type)
         const elements1 = elements.filter(el => picksData.picks.map(a => a.element).includes(el.id));
         elements1.sort((a, b) => {
             const xpA = a.event_points - fplData.getTotalXPMultiplies({elements, teams}, gameWeek, 0, { picks: [{element: parseInt(a.id), multiplier: 1}] }, fixtures).totalXPoints;
@@ -111,10 +112,16 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
         }
         console.log('--- trfopt ---')
         const solution = solver.Solve(model);
-        console.table(solution);
+        // console.table(solution);
         const optimizedSquad = Object.keys(solution).filter(a => a != 'feasible' && a != 'result' && a!= 'bounded' && a != 'isIntegral')
-
-
+        const data = elements.filter(el => optimizedSquad.find(os => os === el.web_name)).map(el => {return {web_name: el.web_name, pos: getPosition(el.element_type), cost: el.now_cost/10, xp: fplData.getTotalXPMultiplies({elements, teams}, gameWeek, 1, { picks: [{element: parseInt(el.id), multiplier: 1}] }, fixtures).totalXPoints}})
+        let totalcost = 0;
+        for (let i=0; i<15;i++) {
+            totalcost += data[i].cost;
+        } 
+        const totalData = {web_name: 'TOTAL', cost: totalcost};
+        data.push(totalData)
+        console.table(data);
 
 
         /**
@@ -164,7 +171,21 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
 
         console.log('--- pickopt ---')
         const solution2 = solver.Solve(model);
-        console.table(solution2);
+        // console.table(solution2);
+        const optimizedSquad2 = Object.keys(solution2).filter(a => a != 'feasible' && a != 'result' && a!= 'bounded' && a != 'isIntegral')
+        const data2 = elements.filter(el => optimizedSquad2.find(os => os === el.web_name)).map(el => {return {web_name: el.web_name, pos: getPosition(el.element_type),cost: el.now_cost/10, xp: fplData.getTotalXPMultiplies({elements, teams}, gameWeek, 1, { picks: [{element: parseInt(el.id), multiplier: 1}] }, fixtures).totalXPoints}})
+        const cptIdx = data2.findIndex(dt => optimizedSquad2.includes(dt.web_name + '*'))
+        data2[cptIdx].web_name += ' (C)'
+        data2[cptIdx].xp *= 2;
+        let totalxp = 0;
+        // let totalcost = 0;
+        for (let i=0; i<11;i++) {
+            totalxp += data2[i].xp;
+            totalcost += data2[i].cost;
+        } 
+        const totalData2 = {web_name: 'TOTAL', xp: totalxp};
+        data2.push(totalData2)
+        console.table(data2);
 
 
         /**
@@ -267,5 +288,17 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
             console.log(`(default command)`)
         }
         console.log('customize this script to get the different result!')
+    }
+
+    const getPosition = (element_type) => {
+        if (element_type === 1) {
+            return 'GKP'
+        } else if (element_type === 2) {
+            return 'DEF'
+        } else if (element_type === 3) {
+            return 'MID'
+        } else if (element_type === 4) {
+            return 'FWD'
+        }
     }
 
