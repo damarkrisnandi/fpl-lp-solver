@@ -8,13 +8,15 @@ let replacesPlayer = [];
 /**
  * fpl money
  */
-let money = 100
+let money = 0
 
 const checkGw = null;
 
 let willReplace = 1;
 
 let playerId = '471950'
+
+let optimizeMax = 'xp';
 
 /**
  * ===========================================
@@ -28,16 +30,22 @@ if (process.argv.length > 2) {
         willReplace = parseInt(result)
     }
 
-    const idCommand = options.find(opt => opt.startsWith("--id"));
+    const idCommand = options.find(opt => opt.startsWith("--playerId"));
     if (idCommand) {
         const [,result] = idCommand.split("=")
         playerId = result
     }
 
-    const moneyCommand = options.find(opt => opt.startsWith("--money"));
-    if (moneyCommand) {
-        const [,result] = moneyCommand.split("=")
-        money = parseFloat(result)
+    // const moneyCommand = options.find(opt => opt.startsWith("--money"));
+    // if (moneyCommand) {
+    //     const [,result] = moneyCommand.split("=")
+    //     money = parseFloat(result)
+    // }
+
+    const optCommand = options.find(opt => opt.startsWith("--optimize-max"));
+    if (optCommand) {
+        const [,result] = optCommand.split("=")
+        optimizeMax = result
     }
 }
 
@@ -66,6 +74,9 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
         mandatoryPlayer = elements1.filter((e, idx) => idx < 15 - willReplace).map(a => a.web_name);
         replacesPlayer = elements1.filter((e, idx) => (idx >= 15 - willReplace)).map(a => a.web_name);
         
+        if (money == 0) {
+            money = (managerInfo.last_deadline_value)/10;
+        }
         /**
          * 
          * 
@@ -93,7 +104,7 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
         var solver = require("javascript-lp-solver/src/solver"),
         // transfer optimization model
         model = {
-            "optimize": "xp",
+            "optimize": optimizeMax,
             "opType": "max",
             "constraints": {
                 ...maxPick,
@@ -114,7 +125,7 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
         const solution = solver.Solve(model);
         // console.table(solution);
         const optimizedSquad = Object.keys(solution).filter(a => a != 'feasible' && a != 'result' && a!= 'bounded' && a != 'isIntegral')
-        const data = elements.filter(el => optimizedSquad.find(os => os === el.web_name)).map(el => {return {web_name: el.web_name, pos: getPosition(el.element_type), cost: el.now_cost/10, xp: fplData.getTotalXPMultiplies({elements, teams}, gameWeek, 1, { picks: [{element: parseInt(el.id), multiplier: 1}] }, fixtures).totalXPoints}})
+        const data = elements.filter(el => optimizedSquad.find(os => os === el.web_name)).map(el => {return {web_name: el.web_name, pos: getPosition(el.element_type), cost: el.now_cost/10, value: parseFloat(fplVariables[el.web_name][optimizeMax])}})
         let totalcost = 0;
         for (let i=0; i<15;i++) {
             totalcost += data[i].cost;
@@ -149,7 +160,7 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
         
         // pick optimization model
         model = {
-            "optimize": "xp",
+            "optimize": optimizeMax,
             "opType": "max",
             "constraints": {
                 ...maxPick2,
@@ -173,17 +184,19 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
         const solution2 = solver.Solve(model);
         // console.table(solution2);
         const optimizedSquad2 = Object.keys(solution2).filter(a => a != 'feasible' && a != 'result' && a!= 'bounded' && a != 'isIntegral')
-        const data2 = elements.filter(el => optimizedSquad2.find(os => os === el.web_name)).map(el => {return {web_name: el.web_name, pos: getPosition(el.element_type),cost: el.now_cost/10, xp: fplData.getTotalXPMultiplies({elements, teams}, gameWeek, 1, { picks: [{element: parseInt(el.id), multiplier: 1}] }, fixtures).totalXPoints}})
+        const data2 = elements.filter(el => optimizedSquad2.find(os => os === el.web_name)).map(el => {return {web_name: el.web_name, pos: getPosition(el.element_type),cost: el.now_cost/10, value: parseFloat(fplVariables[el.web_name][optimizeMax])}})
         const cptIdx = data2.findIndex(dt => optimizedSquad2.includes(dt.web_name + '*'))
-        data2[cptIdx].web_name += ' (C)'
-        data2[cptIdx].xp *= 2;
-        let totalxp = 0;
+        data2[cptIdx].web_name += ' (C)';
+        if (optimizeMax === 'xp' || optimizeMax === 'points_per_game') {
+            data2[cptIdx].value *= 2;
+        }
+        let totalvalue = 0;
         // let totalcost = 0;
         for (let i=0; i<11;i++) {
-            totalxp += data2[i].xp;
+            totalvalue += data2[i].value;
             totalcost += data2[i].cost;
         } 
-        const totalData2 = {web_name: 'TOTAL', xp: totalxp};
+        const totalData2 = {web_name: 'TOTAL', value: totalvalue};
         data2.push(totalData2)
         console.table(data2);
 
