@@ -38,6 +38,19 @@ const picksData = (id, gameWeek) => new Promise((resolve, reject) => {
     });
 })
 
+const managerInfo = (id) => new Promise((resolve, reject) => {
+    const axios = require('axios');
+    
+    axios({
+        method: 'get',
+        url: `https://fantasy.premierleague.com/api/entry/${id}`,
+        responseType: 'application/json'
+      })
+    .then(function (response) {
+        resolve((JSON.parse(response.data)))
+    });
+})
+
 const getExpectedPoints = (element, gameWeek) => {
     let xP = 0;
     const {element_type, bonus, expected_goals_per_90, expected_assists_per_90, starts_per_90, clean_sheets_per_90, own_goals, expected_goals_conceded_per_90, minutes} = element;
@@ -156,6 +169,7 @@ module.exports = {
     playerData,
     fixturesData,
     picksData,
+    managerInfo,
     getExpectedPoints,
     getTotalXPMultiplies
 }
