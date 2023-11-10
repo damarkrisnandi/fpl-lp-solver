@@ -102,7 +102,8 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
         const fplInts = Object.fromEntries(elements.map(e => [e.web_name, 1]))
         
         var solver = require("javascript-lp-solver/src/solver"),
-        // transfer optimization model
+        
+        //#region transfer optimization
         model = {
             "optimize": optimizeMax,
             "opType": "max",
@@ -133,16 +134,10 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
         const totalData = {web_name: 'TOTAL', cost: totalcost};
         data.push(totalData)
         console.table(data);
+        //#endregion transfer optimization
 
 
-        /**
-         * 
-         * 
-         * pick opt
-         * 
-         * 
-         */
-
+        //#region pick optimization
         // variables
         const fplVariables2 = createVariables('', (v) => optimizedSquad.includes(v.web_name), [], checkGw)
         const fplCaptaincyVariables2 = createVariables('*', (v) => optimizedSquad.includes(v.web_name), [[`capt_check`, 1],], checkGw)
@@ -199,15 +194,8 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
         const totalData2 = {web_name: 'TOTAL', value: totalvalue};
         data2.push(totalData2)
         console.table(data2);
+        //#endregion pick optimization
 
-
-        /**
-         * 
-         * 
-         * cost
-         * 
-         * 
-         */
 
         if (!solution.feasible) {
             console.log("Solution unfeasible!")
@@ -237,13 +225,13 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
         
         console.log('RECOMMENDED TRANSFERS')
         console.log('---------------------');
-        console.log(`TRF_IN \u2B82  TRF_OUT`)
+        console.log(`TRF_IN \u2B82 TRF_OUT`)
         console.log('---------------------');
         for (let buy of buys) {
             buy.element_type
             const sellIndex = sells.findIndex(s => s.element_type === buy.element_type)
             const transfer = {in: buy.web_name, out: sells[sellIndex].web_name};
-            console.log(`${transfer.in} \u2B82  ${transfer.out}`)
+            console.log(`${transfer.in} \u2B82 ${transfer.out}`)
             sells.splice(sellIndex, 1);
         }
         console.log('---------------------');
