@@ -1,5 +1,10 @@
 # FPL Optimizer based on Expected Points
 
+## installation
+```
+npm install
+```
+
 ## default
 ```
 node index
