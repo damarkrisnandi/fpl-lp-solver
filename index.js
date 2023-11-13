@@ -1,4 +1,8 @@
+require('dotenv').config();
 console.clear();
+
+
+
 /**
  * hold players
  */
@@ -12,9 +16,9 @@ let money = 0
 
 const checkGw = null;
 
-let willReplace = 1;
+let willReplace = 0;
 
-let playerId = '471950'
+let playerId = ''
 
 let optimizeMax = 'xp';
 
@@ -58,6 +62,15 @@ const fplData = require('./fpl-data')
 const playerData = fplData.playerData;
 const fixturesData = fplData.fixturesData;
 
+const prompt = require('prompt-sync')();
+const entryId = prompt('Your entry id:');
+if (entryId === 'default') {
+    playerId = process.env.ENTRY_ID;
+} else {
+    playerId = entryId;
+    
+}
+
 Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{elements, events, teams}, fixtures, managerInfo]) => {
     const gameWeek = events.find(o => o.is_current).id;
     console.log('\n')
@@ -100,7 +113,7 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
                     "gkp": {"equal": 2},
                     "def": {"equal": 5},
                     "mid": {"equal" : 5},
-                    "fwd": {"equal": 3}
+                    "fwd": {"equal": 3},
                 };
                 const playerConstraints = Object.fromEntries(mandatoryPlayer.map(p => [p, {"equal": 1}]))
                 const teamConstaints = Object.fromEntries(elements.map(e => [`team_${e.team_code}`, {"max": 3}]))
@@ -120,24 +133,30 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
                         ...posConstraints,
                         ...playerConstraints,
                         ...teamConstaints,
-                        "is_playing": { "min": 11 }
+                        // "is_playing": { "min": 11 },
+                        // "transfers": { "min": 1 }
                     },
                     "variables": {
-                        ...fplVariables
+                        ...fplVariables,
+                        // 'transfers': {
+                        //     'xp': (willReplace > 0 ? willReplace - 1 : 0) * -4,
+                        //     'transfers': 1,
+                        // }
                     },
                     "ints": {
-                        ...fplInts
+                        ...fplInts,
+                        // "transfers": 1
                     }
                 }
-                console.log('--- trfopt ---')
                 const solution = solver.Solve(model);
+                
 
                 if (!solution.feasible) {
                     console.log("Solution unfeasible!")
                     showCommand();
-                    console.log('\n')
-                    console.log(`================`)
-                    console.log('\n')
+                    // console.log('\n')
+                    // console.log(`================`)
+                    // console.log('\n')
                     throw new Error('retry...')
                 }
 
@@ -149,6 +168,7 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
                 } 
                 const totalData = {web_name: 'TOTAL', cost: totalcost};
                 data.push(totalData)
+                console.log('--- trfopt ---')
                 console.table(data);
                 //#endregion transfer optimization
 
@@ -191,7 +211,6 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
                     }
                 }
 
-                console.log('--- pickopt ---')
                 const solution2 = solver.Solve(model);
 
                 const optimizedSquad2 = Object.keys(solution2).filter(a => a != 'feasible' && a != 'result' && a!= 'bounded' && a != 'isIntegral')
@@ -213,6 +232,7 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
                 const def = data2.filter(d => d.pos === 'DEF').length;
                 const mid = data2.filter(d => d.pos === 'MID').length;
                 const fwd = data2.filter(d => d.pos === 'FWD').length;
+                console.log('--- pickopt ---')
                 console.log('\n');
                 console.log(`Formation: ${def}-${mid}-${fwd}`);
 
@@ -221,9 +241,10 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
 
 
                 let cost = 0;
+
                 for (let p of optimizedSquad) {
                     let eee = elements.find(e => e.web_name == p);
-                    cost += eee.now_cost;
+                    cost += eee ? eee.now_cost : 0;
                 }
                 console.log('\n')
                 console.log('team value:', cost/10);
@@ -242,11 +263,12 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
                 console.log(`TRF_IN \u2B82 TRF_OUT`)
                 console.log('---------------------');
                 for (let buy of buys) {
-                    buy.element_type
-                    const sellIndex = sells.findIndex(s => s.element_type === buy.element_type)
-                    const transfer = {in: buy.web_name, out: sells[sellIndex].web_name};
-                    console.log(`${transfer.in} \u2B82 ${transfer.out}`)
-                    sells.splice(sellIndex, 1);
+                    if (sells.length > 0 && buy) {
+                        const sellIndex = sells.findIndex(s => s.element_type === buy.element_type)
+                        const transfer = {in: buy.web_name, cost_in: buy.now_cost/10, out: sells[sellIndex].web_name, cost_out: sells[sellIndex].now_cost/10};
+                        console.log(`${transfer.in} (${transfer.cost_in}£) \u2B82 ${transfer.out} (${transfer.cost_out}£)`)
+                        sells.splice(sellIndex, 1);
+                    }
                 }
 
                 console.log('---------------------');
@@ -257,7 +279,7 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
                 console.log(`================`)
                 console.log('\n')
             } catch (error) {
-                console.log(error.message);
+                console.log(error.mesage);
                 willReplace += 1;
                 console.log(`replace + 1 = ${willReplace}`)
                 optimizationProcess();
@@ -281,7 +303,6 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
             }
         ]}
         
-        
         let entries = Object.fromEntries([
             [`${e.web_name}${suffix}`, 1],
             ...addEntries,
@@ -289,9 +310,10 @@ Promise.all([playerData, fixturesData, fplData.managerInfo(playerId)]).then(([{e
             ['mid', e.element_type == 3 ? 1 : 0],
             ['def', e.element_type == 2 ? 1 : 0],
             ['gkp', e.element_type == 1 ? 1 : 0],
-            ['xp', fplData.getTotalXPMultiplies({elements, teams}, gameWeek, inputGw && inputGw > gameWeek ? (inputGw - gameWeek) : 1, picksData, fixtures).totalXPoints],
+            ['xp', fplData.getTotalXPMultiplies({elements, teams}, gameWeek, inputGw && inputGw > gameWeek ? (inputGw - gameWeek) : 2, picksData, fixtures).totalXPoints],
+            
             [`team_${e.team_code}`, 1],
-            [`is_playing`, e.status === 'a' ? 1 : 0]
+            [`is_playing`, e.status === 'a' ? 1 : 0],
         ]);
 
         
